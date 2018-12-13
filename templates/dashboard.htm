@@ -1,37 +1,50 @@
 {% extends "stampo.htm" %}
 {% block title %}Login{% endblock %}
 {% block content %}
-<div class="row">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-body">
-                Now playing: {%if currentsong %}{{currentsong.name}} {%if user.isAdmin == True %} Ciao ciao
-                {%endif%}{%else%}
-                nothing. {%endif%}
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    Now playing: {% if currentsong %}{{ currentsong.name }} {% else %} nothing. {% endif %}
+                    {% if user.isAdmin is sameas True %}
+                        <a href="/skip"> <i class="fas fa-fast-forward"></i> </a>{% endif %}
+                </div>
+            </div>
+            <p class="lead">
+            <form action="/addSong" method="POST">
+                <div class="form-group">
+                    <label for="song">To add a new song to the list, write the title below.</label>
+                    <input type="text" class="form-control" id="song" aria-describedby="song"
+                           placeholder="Toto - Africa" name="song">
+                </div>
+                <div class="form-group row">
+                    <div class="col-sm-12">
+                        <button type="submit" class="btn btn-primary btn-block">Submit</button>
+                    </div>
+                </div>
+            </form>
+            <div class="row">
+                <div class="col-md-6">
+                    <a href="/user_mod/{{ user.uid }}" class="btn btn-warning btn-block">Edit Profile</a>
+                </div>
+                <div class="col-md-6">
+                    <a href="/about" class="btn btn-info btn-block">About</a>
+                </div>
+            </div>
+            {% if user.isAdmin is sameas True %}<br><a href="/user_list" class="btn btn-danger btn-block">User management</a>{% endif %}
+            </p>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    Up next:
+                </div>
+                <ul class="list-group list-group-flush">
+                    {% for song in songs %}
+                        <li class="list-group-item">{{ song.name }}</li>
+                    {% endfor %}
+                </ul>
             </div>
         </div>
-        <p class="lead">
-        <form action="/addSong" method="POST">
-            <div class="form-group">
-                <label for="song">To add a new song to the list, write the title below.</label>
-                <input type="text" class="form-control" id="song" aria-describedby="song"
-                       placeholder="Toto - Africa" name="song">
-                <button type="submit" class="btn btn-primary">Submit</button>
-            </div>
-        </form>
-        </p>
     </div>
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                Up next:
-            </div>
-            <ul class="list-group list-group-flush">
-                {% for song in songs %}
-                <li class="list-group-item">{{song.name}}</li>
-                {%endfor%}
-            </ul>
-        </div>
-    </div>
-</div>
-{%endblock%}
+{% endblock %}

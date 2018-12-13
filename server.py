@@ -2,9 +2,9 @@ from flask import Flask, session, url_for, redirect, request, render_template, a
 from flask_sqlalchemy import SQLAlchemy
 import bcrypt
 import os
-import random
-import string
-import requests
+import threading
+import vlc
+import youtube_dl
 
 app = Flask(__name__)
 app.secret_key = "dacambiare"
@@ -67,6 +67,23 @@ def find_user(username):  # Restituisce l'utente corrispondente all'username
     return User.query.filter_by(username=username).first()
 
 
+def download_song(search):
+    outtmpl = "currentsong" + '.%(ext)s'
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': outtmpl,
+        'postprocessors': [
+            {'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3',
+             'preferredquality': '192',
+             },
+            {'key': 'FFmpegMetadata'},
+        ],
+    }
+
+    with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        info_dict = ydl.extract_info(url=f"ytsearch:{search}", download=True)
+
+
 # Website webpage functions go under here
 
 
@@ -101,7 +118,7 @@ def page_dashboard():
     return render_template("/dashboard.htm", user=user, currentSong=currentSong, songs=songs)
 
 
-@app.route("/add_user", methods=["GET", "POST"])
+@app.route("/user_add", methods=["GET", "POST"])
 def page_user_add():
     if 'username' not in session or 'username' is None:
         return redirect(url_for('page_login'))
@@ -114,7 +131,37 @@ def page_user_add():
         newUser = User(request.form['username'], request.form['password'], 0)
         db.session.add(newUser)
         db.session.commit()
-        return redirect(url_for('page_dashboard'))
+        return redirect(url_for('page_user_list'))
+
+
+@app.route("/user_mod/<int:uid>", methods=["GET", "POST"])
+def page_user_mod(uid):
+    if 'username' not in session or 'username' is None:
+        return redirect(url_for('page_login'))
+    user = find_user(session['username'])
+    if user.uid != uid and not user.isAdmin:
+        return abort(403)
+    utente = User.query.get_or_404(uid)
+    if request.method == "GET":
+        return render_template("user/mod.htm", utente=utente, user=user)
+    else:
+        if request.form["password"] != "":
+            p = bytes(request.form["password"], encoding="utf-8")
+            utente.password = bcrypt.hashpw(p, bcrypt.gensalt())
+            db.session.commit()
+            return redirect(url_for('page_dashboard'))
+
+
+@app.route("/user_list")
+def page_user_list():
+    if 'username' not in session or 'username' is None:
+        return redirect(url_for('page_login'))
+    user = find_user(session['username'])
+    if not user.isAdmin:
+        return abort(403)
+    utenti = User.query.all()
+    if request.method == "GET":
+        return render_template("user/list.htm", utenti=utenti, user=user)
 
 
 @app.route("/addSong", methods=["POST"])

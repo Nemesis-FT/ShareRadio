@@ -1,0 +1,20 @@
+{% extends "stampo.htm" %}
+{% block title %}User management{% endblock %}
+{% block content %}
+    <h1>User list</h1>
+    <a href="/user_add" class="btn btn-warning btn-block">Add user</a>
+    <table class="table table-hover">
+        <thead>
+        <tr>
+            <th>Username</th>
+            <th>Azioni</th>
+        </tr>
+        </thead>
+        {% for utente in utenti %}
+            <tr>
+                <td>{{ utente.username }}</td>
+                <td><a href="/user_mod/{{ utente.uid }}"><i class="fas fa-pencil-alt"></i></a><a href="/delete_from_database/3/{{ utente.uid }}"><i class="fas fa-times" aria-hidden="true"></i></a></td>
+            </tr>
+        {% endfor %}
+    </table>
+{% endblock %}
