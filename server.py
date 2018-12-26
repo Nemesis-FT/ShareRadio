@@ -14,6 +14,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 service_started = False
 skip = False
+finished_downloading = True
 
 
 # Database tables go under here
@@ -95,6 +96,8 @@ def streamer():
     already_added = False
     last_was_filler = True
     first_run = True
+    songs = []
+    global finished_downloading
     print("I'm here.")
     inst = vlc.Instance('--input-repeat=-1')
     lista = inst.media_list_new()
@@ -104,6 +107,7 @@ def streamer():
     p = inst.media_list_player_new()
     p.set_media_list(lista)
     p.play()
+    songs.append("Filler")
     try:
         while True:
             try:
@@ -119,7 +123,10 @@ def streamer():
                 print("     List set")
                 already_added = True
                 last_was_filler = True
+                songs.append("Filler")
+                print(songs)
             elif song and not already_added:
+                finished_downloading = False
                 print("Branch 2")
                 download_song(song.name, song.name)
                 print("     Downloaded song")
@@ -135,11 +142,13 @@ def streamer():
                     p.next()
                     first_run = False
                 last_was_filler = False
-            else:
+                finished_downloading=True
+                songs.append(song.name)
+                print(songs)
+            if finished_downloading:
                 song_time = p.get_state()
                 if str(song_time) == "State.Ended" or skip:
                     print("Ho skippato!")
-                    print(dict(lista))
                     already_added = False
                     try:
                         song_delete = Song.query.filter_by(playing=True).first()
@@ -149,6 +158,8 @@ def streamer():
                         pass
                     p.next()
                     skip = False
+                    songs.pop(0)
+                    print(songs)
     except Exception as e:
         print(e)
         p.stop()
@@ -184,13 +195,6 @@ def page_dashboard():
     print(service_started)
     if 'username' not in session or 'username' is None:
         return redirect(url_for('page_login'))
-    if not service_started:
-        print("Service not started. Now starting the Thread...")
-        try:
-            t = threading.Thread(target=streamer())
-            t.run()
-        except:
-            print("Something happened while starting the worker.")
     user = find_user(session['username'])
     currentSong = Song.query.filter_by(playing=True).first()
     songs = Song.query.filter_by(playing=False).limit(10).all()
@@ -268,11 +272,23 @@ def api_song_next():
     return redirect(url_for('page_dashboard'))
 
 
+@app.route("/worker")
+def api_worker():
+    if not service_started:
+        print("Service not started. Now starting the Thread...")
+        try:
+            t = threading.Thread(target=streamer())
+            t.run()
+        except:
+            print("Something happened while starting the worker.")
+    abort(500)
+
+
 if __name__ == "__main__":
     # Se non esiste il database viene creato
-    if not os.path.isfile("db.sqlite"):
-        db.create_all()
-        admin = User("admin", "password", True)
-        db.session.add(admin)
-        db.session.commit()
+    #if not os.path.isfile("db.sqlite"):
+    #    db.create_all()
+    #    admin = User("admin", "password", True)
+    #    db.session.add(admin)
+    #    db.session.commit()
     app.run(host="0.0.0.0", debug=True, threaded=True)
