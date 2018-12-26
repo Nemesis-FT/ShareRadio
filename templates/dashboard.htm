@@ -7,7 +7,7 @@
                 <div class="card-body">
                     Now playing: {% if currentsong %}{{ currentsong.name }} {% else %} nothing. {% endif %}
                     {% if user.isAdmin is sameas True %}
-                        <a href="/skip"> <i class="fas fa-fast-forward"></i> </a>{% endif %}
+                        <a href="/next"> <i class="fas fa-fast-forward"></i> </a>{% endif %}
                 </div>
             </div>
             <p class="lead">

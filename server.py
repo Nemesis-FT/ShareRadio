@@ -5,12 +5,15 @@ import os
 import threading
 import vlc
 import youtube_dl
+import threading
 
 app = Flask(__name__)
 app.secret_key = "dacambiare"
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+service_started = False
+skip = False
 
 
 # Database tables go under here
@@ -67,8 +70,9 @@ def find_user(username):  # Restituisce l'utente corrispondente all'username
     return User.query.filter_by(username=username).first()
 
 
-def download_song(search):
-    outtmpl = "currentsong" + '.%(ext)s'
+def download_song(search, name):
+    print("I'm inside the downloader")
+    outtmpl = name + '.%(ext)s'
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': outtmpl,
@@ -79,9 +83,75 @@ def download_song(search):
             {'key': 'FFmpegMetadata'},
         ],
     }
-
+    print("I'm about to download stuff.")
     with youtube_dl.YoutubeDL(ydl_opts) as ydl:
         info_dict = ydl.extract_info(url=f"ytsearch:{search}", download=True)
+
+
+def streamer():
+    global skip
+    global service_started
+    service_started = True
+    already_added = False
+    last_was_filler = True
+    first_run = True
+    print("I'm here.")
+    inst = vlc.Instance('--input-repeat=-1')
+    lista = inst.media_list_new()
+    opzioni = "sout=#transcode{acodec=mp3,ab=192,channels=2,samplerate=44100}:http{dst=:8090/file.mp3}"
+    lista.add_media(inst.media_new("static/elevatormusic.mp3", opzioni))
+    print("Stream started over port 8090.")
+    p = inst.media_list_player_new()
+    p.set_media_list(lista)
+    p.play()
+    try:
+        while True:
+            try:
+                song = Song.query.filter_by(playing=False).first()
+            except Exception as e:
+                print(e)
+                song = None
+            if not song and not already_added:
+                print("Branch 1")
+                lista.add_media(inst.media_new("static/elevatormusic.mp3", opzioni))
+                print("     Now playing elevator music. Enjoy.")
+                p.set_media_list(lista)
+                print("     List set")
+                already_added = True
+                last_was_filler = True
+            elif song and not already_added:
+                print("Branch 2")
+                download_song(song.name, song.name)
+                print("     Downloaded song")
+                lista.add_media(inst.media_new(song.name + ".mp3", opzioni))
+                print("Now playing the user's music. Have fun.")
+                p.set_media_list(lista)
+                song.playing = True
+                db.session.commit()
+                already_added = True
+                if last_was_filler:
+                    p.next()
+                if first_run:
+                    p.next()
+                    first_run = False
+                last_was_filler = False
+            else:
+                song_time = p.get_state()
+                if str(song_time) == "State.Ended" or skip:
+                    print("Ho skippato!")
+                    print(dict(lista))
+                    already_added = False
+                    try:
+                        song_delete = Song.query.filter_by(playing=True).first()
+                        db.session.delete(song_delete)
+                        db.session.commit()
+                    except:
+                        pass
+                    p.next()
+                    skip = False
+    except Exception as e:
+        print(e)
+        p.stop()
 
 
 # Website webpage functions go under here
@@ -110,8 +180,17 @@ def page_login():
 
 @app.route("/dashboard")
 def page_dashboard():
+    global service_started
+    print(service_started)
     if 'username' not in session or 'username' is None:
         return redirect(url_for('page_login'))
+    if not service_started:
+        print("Service not started. Now starting the Thread...")
+        try:
+            t = threading.Thread(target=streamer())
+            t.run()
+        except:
+            print("Something happened while starting the worker.")
     user = find_user(session['username'])
     currentSong = Song.query.filter_by(playing=True).first()
     songs = Song.query.filter_by(playing=False).limit(10).all()
@@ -170,10 +249,22 @@ def api_song_add():
         return abort(403)
     user = find_user(session['username'])
     check = Song.query.filter_by(submitter_id=user.uid).first()
-    if check is None:
+    if check is None or user.isAdmin:
         newsong = Song(request.form['song'], user.uid)
         db.session.add(newsong)
         db.session.commit()
+    return redirect(url_for('page_dashboard'))
+
+
+@app.route("/next")
+def api_song_next():
+    global skip
+    if 'username' not in session or 'username' is None:
+        return redirect(url_for('page_login'))
+    user = find_user(session['username'])
+    if not user.isAdmin:
+        return abort(403)
+    skip = True
     return redirect(url_for('page_dashboard'))
 
 
@@ -184,4 +275,4 @@ if __name__ == "__main__":
         admin = User("admin", "password", True)
         db.session.add(admin)
         db.session.commit()
-    app.run(host="0.0.0.0", debug=True)
+    app.run(host="0.0.0.0", debug=True, threaded=True)
