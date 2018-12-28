@@ -73,15 +73,15 @@ def find_user(username):  # Restituisce l'utente corrispondente all'username
 
 def download_song(search, name):
     print("I'm inside the downloader")
-    outtmpl = name + '.%(ext)s'
+    outtmpl = search + '.%(ext)s'
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': outtmpl,
+        'addmetadata': False,
         'postprocessors': [
             {'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3',
              'preferredquality': '192',
              },
-            {'key': 'FFmpegMetadata'},
         ],
     }
     print("I'm about to download stuff.")
@@ -96,6 +96,7 @@ def streamer():
     already_added = False
     last_was_filler = True
     first_run = True
+    doubleskip = False
     songs = []
     global finished_downloading
     print("I'm here.")
@@ -115,12 +116,14 @@ def streamer():
         while True:
             try:
                 song = Song.query.filter_by(playing=False).first()
+                playing = Song.query.filter_by(playing=True).all()
             except Exception as e:
                 print(e)
                 song = None
-            if not song and not already_added:
+            if not song and not already_added and not first_run:
                 print("Branch 1")
-                lista.add_media(inst.media_new("static/elevatormusic.mp3", opzioni))
+                a = inst.media_new("static/elevatormusic.mp3", opzioni)
+                lista.add_media(a)
                 print("     Now playing elevator music. Enjoy.")
                 p.set_media_list(lista)
                 print("     List set")
@@ -133,36 +136,61 @@ def streamer():
                 print("Branch 2")
                 download_song(song.name, song.name)
                 print("     Downloaded song")
-                lista.add_media(inst.media_new(song.name + ".mp3", opzioni))
+                a=inst.media_new(song.name + ".mp3", opzioni)
+                lista.add_media(a)
+                print("Posizione iniziale: ", lista.index_of_item(a), lista.count())
+                if last_was_filler:
+                    doubleskip=True
+                    try:
+                     p.next()
+                     if lista.index_of_item(a) > 0:
+                      lista.remove_index(0)
+                      p.set_media_list(lista)
+                     songs.pop(0)
+                    except:
+                     pass
+                print("Posizione: ", lista.index_of_item(a), lista.count())
                 print("Now playing the user's music. Have fun.")
                 p.set_media_list(lista)
                 song.playing = True
                 db.session.commit()
                 already_added = True
-                if last_was_filler:
-                    p.next()
-                    songs.pop(0)
-                if first_run:
-                    p.next()
-                    first_run = False
-                    songs.pop(0)
+                #if last_was_filler:
+                #    doubleskip=True
+                #    try:
+                #     p.next()
+                #     lista.remove_index(0)
+                #     p.set_media_list(lista)
+                #     songs.pop(0)
+                #    except:
+                #     pass
+                #if first_run:
+                #    p.next()
+                #    lista.remove_index(0)
+                #    p.set_media_list(lista)
+                #    first_run = False
                 last_was_filler = False
                 finished_downloading=True
                 songs.append(song.name)
                 print(songs)
-
             if finished_downloading:
                 song_time = p.get_state()
+                if(skip):
+                 print("Skip ricevuto")
                 if str(song_time) == "State.Ended" or skip:
                     print("Ho skippato!")
                     already_added = False
+                    print("Dump (finished downloading, skip, doubleskip, queue lenght) ", finished_downloading, skip, doubleskip, lista.count())
                     try:
                         song_delete = Song.query.filter_by(playing=True).first()
                         db.session.delete(song_delete)
                         db.session.commit()
                     except:
                         pass
+                    first_run=False
                     p.next()
+                    lista.remove_index(0)
+                    p.set_media_list(lista)
                     skip = False
                     songs.pop(0)
                     print(songs)
