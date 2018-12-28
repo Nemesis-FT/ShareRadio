@@ -8,7 +8,7 @@ import youtube_dl
 import threading
 
 app = Flask(__name__)
-app.secret_key = "dacambiare"
+app.secret_key = "solello"
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
@@ -86,7 +86,7 @@ def download_song(search, name):
     }
     print("I'm about to download stuff.")
     with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-        info_dict = ydl.extract_info(url=f"ytsearch:{search}", download=True)
+        info_dict = ydl.extract_info(url="ytsearch:{}".format(search), download=True)
 
 
 def streamer():
@@ -99,7 +99,10 @@ def streamer():
     songs = []
     global finished_downloading
     print("I'm here.")
-    inst = vlc.Instance('--input-repeat=-1')
+    try:
+    	inst = vlc.Instance()
+    except Exception as e:
+    	print(e)
     lista = inst.media_list_new()
     opzioni = "sout=#transcode{acodec=mp3,ab=192,channels=2,samplerate=44100}:http{dst=:8090/file.mp3}"
     lista.add_media(inst.media_new("static/elevatormusic.mp3", opzioni))
@@ -286,9 +289,9 @@ def api_worker():
 
 if __name__ == "__main__":
     # Se non esiste il database viene creato
-    #if not os.path.isfile("db.sqlite"):
-    #    db.create_all()
-    #    admin = User("admin", "password", True)
-    #    db.session.add(admin)
-    #    db.session.commit()
+    if not os.path.isfile("db.sqlite"):
+        db.create_all()
+        admin = User("admin", "password", True)
+        db.session.add(admin)
+        db.session.commit()
     app.run(host="0.0.0.0", debug=True, threaded=True)
