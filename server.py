@@ -129,25 +129,34 @@ def streamer():
                 songs.append("Filler")
                 print(songs)
             elif song and not already_added:
-                finished_downloading = False
-                print("Branch 2")
-                download_song(song.name, song.name)
-                print("     Downloaded song")
-                lista.add_media(inst.media_new(song.name + ".mp3", opzioni))
-                print("Now playing the user's music. Have fun.")
-                p.set_media_list(lista)
-                song.playing = True
-                db.session.commit()
-                already_added = True
-                if last_was_filler:
-                    p.next()
-                if first_run:
-                    p.next()
-                    first_run = False
-                last_was_filler = False
-                finished_downloading=True
-                songs.append(song.name)
-                print(songs)
+                try:
+                    finished_downloading = False
+                    print("Branch 2")
+                    download_song(song.name, song.name)
+                    print("     Downloaded song")
+                    lista.add_media(inst.media_new(song.name + ".mp3", opzioni))
+                    print("Now playing the user's music. Have fun.")
+                    p.set_media_list(lista)
+                    song.playing = True
+                    db.session.commit()
+                    already_added = True
+                    if last_was_filler:
+                        p.next()
+                        songs.pop(0)
+                    if first_run:
+                        p.next()
+                        first_run = False
+                        songs.pop(0)
+                    last_was_filler = False
+                    finished_downloading=True
+                    songs.append(song.name)
+                    print(songs)
+                except:
+                    db.session.delete(song)
+                    db.session.commit()
+                    print("Something happened while downloading.")
+                    finished_downloading = True
+                    already_added = False
             if finished_downloading:
                 song_time = p.get_state()
                 if str(song_time) == "State.Ended" or skip:
