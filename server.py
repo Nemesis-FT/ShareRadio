@@ -140,6 +140,13 @@ def streamer():
                     song.playing = True
                     db.session.commit()
                     already_added = True
+                except:
+                    db.session.delete(song)
+                    db.session.commit()
+                    print("Something happened while downloading.")
+                    finished_downloading = True
+                    already_added = False
+                try:
                     if last_was_filler:
                         p.next()
                         songs.pop(0)
@@ -147,16 +154,13 @@ def streamer():
                         p.next()
                         first_run = False
                         songs.pop(0)
-                    last_was_filler = False
-                    finished_downloading=True
-                    songs.append(song.name)
-                    print(songs)
                 except:
-                    db.session.delete(song)
-                    db.session.commit()
-                    print("Something happened while downloading.")
-                    finished_downloading = True
-                    already_added = False
+                    print("Something happened")
+                last_was_filler = False
+                finished_downloading=True
+                songs.append(song.name)
+                print(songs)
+
             if finished_downloading:
                 song_time = p.get_state()
                 if str(song_time) == "State.Ended" or skip:
